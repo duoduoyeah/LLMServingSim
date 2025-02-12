@@ -17,7 +17,7 @@ class Request:
 
     # to print the request information
     def __str__(self):
-        return str(self.__dict__) 
+        return str(self.__dict__)
 
     def addLatency(self, end_time):
         self.end_time = end_time
@@ -31,21 +31,33 @@ class Request:
 
     def setQueDelay(self, current):
         self.queuing_delay = current - self.arrival
-    
+
     def setTTFT(self, current):
         self.TTFT = current - self.arrival
 
 
 # class that manages batch of astra-sim
 class Batch:
-    def __init__(self, batch_id, model, input, init_cnt, batch_size, batch_time, kv_size, evict=0, load=0, isORCA=False):
+    def __init__(
+        self,
+        batch_id,
+        model,
+        input,
+        init_cnt,
+        batch_size,
+        batch_time,
+        kv_size,
+        evict=0,
+        load=0,
+        isORCA=False,
+    ):
         self.batch_id = batch_id
         self.model = model
         self.input = input
         self.init_cnt = init_cnt
         self.batch_size = batch_size
         self.batch_time = batch_time
-        self.fired = [] # systems that fired this batch
+        self.fired = []  # systems that fired this batch
         self.requests = []
         self.end = []
         # ORCA

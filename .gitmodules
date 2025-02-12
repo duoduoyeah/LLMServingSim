@@ -1,3 +1,4 @@
 [submodule "astra-sim"]
 	path = astra-sim
-	url = https://github.com/JaehongCS20/astra-sim
+	# url = https://github.com/JaehongCS20/astra-sim
+	url = file:///workspaces/simulation/simulator/astra-sim

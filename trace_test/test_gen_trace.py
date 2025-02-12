@@ -7,6 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from inference_serving.request import *
 from inference_serving.generate_trace import generateTrace
 
+
 def generate_dummy_request(batch_id, model):
     """Generate a dummy Request for a given batch."""
     input_size = random.randint(64, 512)
@@ -19,8 +20,9 @@ def generate_dummy_request(batch_id, model):
         model=model,
         input=input_size,
         output=output_size,
-        arrival=arrival_time
+        arrival=arrival_time,
     )
+
 
 def generate_dummy_batch(batch_id):
     """Generate a dummy Batch instance."""
@@ -44,7 +46,7 @@ def generate_dummy_batch(batch_id):
         kv_size=kv_size,
         evict=evict,
         load=load,
-        isORCA=is_orca
+        isORCA=is_orca,
     )
 
     # Add random requests to the batch
@@ -53,7 +55,6 @@ def generate_dummy_batch(batch_id):
         batch.requests.append(generate_dummy_request(batch_id, model))
 
     return batch
-
 
 
 if __name__ == "__main__":

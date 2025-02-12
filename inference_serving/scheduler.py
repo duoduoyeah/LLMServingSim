@@ -10,9 +10,21 @@ from .generate_graph import *
 from .generate_trace import *
 from .pim import *
 
+
 # class that shedules request of astra-sim
 class Scheduler:
-    def __init__(self, model, max_batch, npu_num, npu_group, npu_mem, fp, block_size, req_num, verbose=False):
+    def __init__(
+        self,
+        model,
+        max_batch,
+        npu_num,
+        npu_group,
+        npu_mem,
+        fp,
+        block_size,
+        req_num,
+        verbose=False,
+    ):
         # all time realated variables are in using tick (system tick)
         # LLMServingSim uses Orca, vLLM technique at deafult
         self.model = model
@@ -21,9 +33,9 @@ class Scheduler:
         self.npu_group = npu_group
         self.req_num = req_num
         # lists are sorted in arrival time manner
-        self.request = [] # list of requests
-        self.inflight = [] # list of batches
-        self.done = [] # list of requests
+        self.request = []  # list of requests
+        self.inflight = []  # list of batches
+        self.done = []  # list of requests
         self.reqIDs = -1
         self.batchIDs = -1
 
@@ -35,18 +47,21 @@ class Scheduler:
 
     # generate request in poisson dist
     def generate(self, path, isInit=True):
-        path = f'../{path}' # move out from astra-sim folder
-        data = pd.read_csv(path, sep='\t')
+        path = f"../{path}"  # move out from astra-sim folder
+        data = pd.read_csv(path, sep="\t")
         cnt = 0
         for index, row in data.iterrows():
             if index >= self.req_num:
                 break
-            input_length = row['input_toks']
-            output_length = row['input_toks'] + row['output_toks']
-            arrival_time_ns = row['arrival_time_ns']
-            
-            self.addRequest([self.model, input_length, output_length, arrival_time_ns], isInit=isInit)
-            cnt+=1
+            input_length = row["input_toks"]
+            output_length = row["input_toks"] + row["output_toks"]
+            arrival_time_ns = row["arrival_time_ns"]
+
+            self.addRequest(
+                [self.model, input_length, output_length, arrival_time_ns],
+                isInit=isInit,
+            )
+            cnt += 1
         if self.verbose:
             print(f"Scheduler: added {cnt} requests to LLMServingSim")
         return
@@ -65,7 +80,9 @@ class Scheduler:
 
             # scheduling start
             batch_req = [req for req in self.request if req.arrival <= current]
-            batch_len = len(batch_req) if len(batch_req) <= self.max_batch else self.max_batch
+            batch_len = (
+                len(batch_req) if len(batch_req) <= self.max_batch else self.max_batch
+            )
 
             # nothing to batch
             if batch_len == 0:
@@ -80,17 +97,19 @@ class Scheduler:
             # check if there is request that need to enlarge the block
             temp_len = batch_len
             for i in range(batch_len, -1, -1):
-                kv_size = self.memory.getBlockKV(batch_req, i) # includes evicted input, and initiation input
+                kv_size = self.memory.getBlockKV(
+                    batch_req, i
+                )  # includes evicted input, and initiation input
                 if self.memory.memAvail(kv_size):
                     temp_len = i
                     break
-            
+
             # no memory to batch
             while temp_len == 0:
                 # preempt request one by one untill there is enough space
                 if len(gen_req) == 0:
                     return None
-                
+
                 # check already evicted request
                 if gen_req[-1].evict:
                     gen_req = gen_req[:-1]
@@ -135,7 +154,7 @@ class Scheduler:
             # load memory
             if kv_size > 0:
                 self.memory.memLoad(kv_size)
-            
+
             total_len = 0
             init_cnt = 0
             for req in batch_req:
@@ -148,19 +167,32 @@ class Scheduler:
 
             # make batch, output doesn't matter here!! always one iteration
             # batch is also 1
-            batch = Batch(self.getBatchID(), batch_req[0].model, total_len, init_cnt, '1', current, kv_size, evict_size, load_size, True)
+            batch = Batch(
+                self.getBatchID(),
+                batch_req[0].model,
+                total_len,
+                init_cnt,
+                "1",
+                current,
+                kv_size,
+                evict_size,
+                load_size,
+                True,
+            )
             # add alredy fired system
             batch.fired.append(sys)
             batch.requests.extend(batch_req)
             self.inflight.append(batch)
             if self.verbose:
-                print(f"Scheduler: scheduling new batch #{batch.batch_id} to sys[{sys}]")
-                print(f"Scheduler: batch #{batch.batch_id} has request #: ",end='')
+                print(
+                    f"Scheduler: scheduling new batch #{batch.batch_id} to sys[{sys}]"
+                )
+                print(f"Scheduler: batch #{batch.batch_id} has request #: ", end="")
                 for req in batch.requests:
-                    print(f"{req.id} ", end='')
+                    print(f"{req.id} ", end="")
                 print()
             return batch
-        
+
         # Schedule already batched request
         else:
             if len(self.inflight) == 0:
@@ -179,7 +211,9 @@ class Scheduler:
                 else:
                     batch.fired.append(sys)
                     if self.verbose:
-                        print(f"Scheduler: scheduling exsisting batch #{batch.batch_id} to sys[{sys}]")
+                        print(
+                            f"Scheduler: scheduling exsisting batch #{batch.batch_id} to sys[{sys}]"
+                        )
                     return batch
 
     # pop inflight, add to done
@@ -210,17 +244,17 @@ class Scheduler:
             for i in range(self.npu_num):
                 if i not in batch.end:
                     return 0, 0, 0
-                
+
         if self.verbose:
             print(f"Scheduler: batch #{batch.batch_id} is done")
-                
+
         pool = []
         for req in batch.requests:
             # change phase
             if req.isInit:
                 req.isInit = False
                 prompt_t += req.input
-                gen_t += 1 # generated one token
+                gen_t += 1  # generated one token
                 req.setTTFT(finish)
 
             else:
@@ -247,7 +281,6 @@ class Scheduler:
         del self.inflight[idx]
         del batch
         return prompt_t, gen_t, req_cnt
-    
 
     ##### Helper Functions ######
     # get new request id
@@ -263,18 +296,20 @@ class Scheduler:
     # add a request
     def addRequest(self, req, isInit=True):
         new = [self.getReqID()]
-        new_req = Request(*(new+req), isInit=isInit)
+        new_req = Request(*(new + req), isInit=isInit)
         self.request.append(new_req)
         return
-    
+
     # get first request's arrival time
     def getFirstArrivalTime(self):
-        return self.request[0].arrival if self.request[0].arrival != 0 else 1 # need to add event handler at first
+        return (
+            self.request[0].arrival if self.request[0].arrival != 0 else 1
+        )  # need to add event handler at first
 
     # print results in done
     def printResult(self):
         # sort in id order
-        self.done.sort(key=lambda x : x.id)
+        self.done.sort(key=lambda x: x.id)
         for i in self.done:
             print(i)
         return
@@ -285,30 +320,43 @@ class Scheduler:
             return True
         else:
             return False
-        
+
     # save requests information to an output file
     def saveOutput(self, output_file):
-        output_file = f'../{output_file}'
-        with open(output_file, mode='w', newline='') as file:
+        output_file = f"../{output_file}"
+        with open(output_file, mode="w", newline="") as file:
             # Initialize the CSV writer
             writer = csv.writer(file)
-            
+
             # Write the column headers
-            writer.writerow(['request id', 'model', 'input', 'output', 
-                            'arrival', 'end_time', 'latency', 
-                            'queuing_delay', 'TTFT', 'TPOT'])
-            
+            writer.writerow(
+                [
+                    "request id",
+                    "model",
+                    "input",
+                    "output",
+                    "arrival",
+                    "end_time",
+                    "latency",
+                    "queuing_delay",
+                    "TTFT",
+                    "TPOT",
+                ]
+            )
+
             # Write each request's information
             for req in self.done:
-                writer.writerow([
-                    req.id,
-                    req.model,
-                    req.input,
-                    req.output,
-                    req.arrival,
-                    req.end_time,
-                    req.latency,
-                    req.queuing_delay,
-                    req.TTFT,
-                    req.TPOT
-                ])
+                writer.writerow(
+                    [
+                        req.id,
+                        req.model,
+                        req.input,
+                        req.output,
+                        req.arrival,
+                        req.end_time,
+                        req.latency,
+                        req.queuing_delay,
+                        req.TTFT,
+                        req.TPOT,
+                    ]
+                )
